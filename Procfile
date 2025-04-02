@@ -1,0 +1,1 @@
+web: gunicorn summaralze.wsgi:application 
