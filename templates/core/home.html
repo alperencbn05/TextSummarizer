@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-md-8">
+        <div class="card mb-4">
+            <div class="card-body">
+                <h2 class="card-title text-center mb-4">AI Text Summarizer</h2>
+                <form method="post" class="mobile-form">
+                    {% csrf_token %}
+                    {{ form|crispy }}
+                    <div class="text-center mt-4">
+                        <button type="submit" class="btn btn-primary btn-lg w-100 w-md-auto">Summarize</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        {% if error %}
+        <div class="alert alert-danger" role="alert">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        {% if summary %}
+        <div class="card">
+            <div class="card-body">
+                <h3 class="card-title mb-3">Original Text</h3>
+                <div class="card bg-light mb-4">
+                    <div class="card-body">
+                        <div class="text-content">
+                            {{ original_text|linebreaks }}
+                        </div>
+                    </div>
+                </div>
+                
+                <h3 class="card-title mb-3">AI Summary</h3>
+                <div class="card bg-light">
+                    <div class="card-body">
+                        {% if bullet_points %}
+                            <div class="bullet-points text-content">
+                                {{ summary|linebreaks }}
+                            </div>
+                        {% else %}
+                            <div class="text-content">
+                                {{ summary|linebreaks }}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+    .bullet-points {
+        white-space: pre-line;
+    }
+    
+    .text-content {
+        font-size: 1rem;
+        line-height: 1.5;
+        overflow-wrap: break-word;
+    }
+    
+    @media (max-width: 768px) {
+        .card {
+            border-radius: 0;
+            margin: -1rem;
+        }
+        
+        .card-body {
+            padding: 1rem;
+        }
+        
+        .btn-lg {
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+        }
+        
+        .card-title {
+            font-size: 1.25rem;
+        }
+        
+        .text-content {
+            font-size: 0.95rem;
+        }
+        
+        .bullet-points {
+            padding-left: 0.5rem;
+        }
+    }
+    
+    @media (min-width: 769px) {
+        .card {
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+        }
+    }
+</style>
+{% endblock %} 

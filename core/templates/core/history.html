@@ -1,0 +1,34 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<div class="container mt-5">
+    <h2>Your Summaries</h2>
+    {% if summaries %}
+        {% for summary in summaries %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Summary from {{ summary.created_at|date:"F j, Y, g:i a" }}</h5>
+                        <span class="badge bg-primary">{{ summary.summary_length|title }}</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <h6>Original Text:</h6>
+                    <p class="text-muted">{{ summary.original_text|truncatewords:50 }}</p>
+                    
+                    <h6>Summary:</h6>
+                    {% if summary.bullet_points %}
+                        <pre class="mb-0">{{ summary.summary_text }}</pre>
+                    {% else %}
+                        <p>{{ summary.summary_text }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        {% endfor %}
+    {% else %}
+        <div class="alert alert-info">
+            You haven't created any summaries yet. <a href="{% url 'home' %}">Create your first summary</a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %} 
