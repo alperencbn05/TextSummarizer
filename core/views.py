@@ -81,7 +81,20 @@ def summarize_text(text, bullet_points=False, summary_length='medium'):
     
     # Add bullet points if requested
     if bullet_points:
-        summary = '\n'.join(f'• {s.strip()}' for s in summary.split('.') if s.strip())
+        # Split into smaller chunks based on length
+        if summary_length == 'short':
+            chunk_size = 2  # Fewer, larger chunks for short summaries
+        elif summary_length == 'long':
+            chunk_size = 4  # More, smaller chunks for long summaries
+        else:  # medium
+            chunk_size = 3  # Balanced chunks for medium summaries
+            
+        # Split the summary into chunks
+        chunks = [s.strip() for s in summary.split('.') if s.strip()]
+        chunks = ['. '.join(chunks[i:i + chunk_size]) for i in range(0, len(chunks), chunk_size)]
+        
+        # Format with bullet points
+        summary = '\n'.join(f'• {chunk}' for chunk in chunks)
     
     return summary
 
@@ -165,10 +178,6 @@ def home(request):
             messages.error(request, 'Please enter some text to summarize.')
             return render(request, 'core/home.html', context)
 
-        if not is_meaningful_text(text):
-            messages.error(request, 'Lütfen özetlemek için en az 3 kelimelik bir metin girin.')
-            return render(request, 'core/home.html', context)
-
         try:
             # Generate summary based on user type
             if not request.user.is_authenticated:
@@ -194,14 +203,15 @@ def home(request):
                 )
             
             if not summary_text.strip():
-                raise ValueError("Özet oluşturulamadı. Lütfen daha uzun bir metin girin.")
+                messages.error(request, 'Could not generate a summary. Please try with different text.')
+                return render(request, 'core/home.html', context)
             
             # Add summary to context
             context['summary_text'] = summary_text
             return render(request, 'core/home.html', context)
             
         except Exception as e:
-            messages.error(request, 'Özet oluşturulamadı. Lütfen daha uzun ve anlamlı bir metin girin.')
+            messages.error(request, 'An error occurred while generating the summary. Please try again.')
             return render(request, 'core/home.html', context)
 
     return render(request, 'core/home.html', context)
