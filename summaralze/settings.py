@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/5.0/ref/settings/
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+import dj_database_url
 
 load_dotenv()
 
@@ -27,9 +28,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-your-secret-key-here')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
-ALLOWED_HOSTS = ['*']  # In production, replace with your domain
+ALLOWED_HOSTS = ['*']  # Daha sonra domain adınızı ekleyeceğiz
 
 
 # Application definition
@@ -80,10 +81,10 @@ WSGI_APPLICATION = 'summaralze.wsgi.application'
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': dj_database_url.config(
+        default='sqlite:///db.sqlite3',
+        conn_max_age=600
+    )
 }
 
 
@@ -115,7 +116,7 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.0/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'static'),
 ]
@@ -133,3 +134,10 @@ CRISPY_TEMPLATE_PACK = "bootstrap5"
 
 # OpenAI API Key
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+
+# Security
+SECURE_SSL_REDIRECT = True
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
