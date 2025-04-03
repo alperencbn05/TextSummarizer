@@ -45,7 +45,7 @@ def get_stop_words():
     return stop_words
 
 def summarize_text(text, bullet_points=False, summary_length='medium'):
-    """Summarize the given text using a simple but effective algorithm."""
+    """Summarize the given text using an improved algorithm."""
     # Split into sentences
     sentences = re.split(r'[.!?]+', text)
     sentences = [s.strip() for s in sentences if s.strip()]
@@ -56,21 +56,32 @@ def summarize_text(text, bullet_points=False, summary_length='medium'):
     words = [word for word in words if word not in stop_words]
     word_freq = FreqDist(words)
     
-    # Calculate sentence scores
+    # Calculate sentence scores using multiple factors
     sentence_scores = {}
     for sentence in sentences:
+        # Factor 1: Word frequency score (40% weight)
         sentence_words = re.findall(r'\b\w+\b', sentence.lower())
-        score = sum(word_freq[word] for word in sentence_words if word in word_freq)
-        sentence_scores[sentence] = score
+        freq_score = sum(word_freq[word] for word in sentence_words if word in word_freq)
+        
+        # Factor 2: Position score (30% weight)
+        position = sentences.index(sentence)
+        position_score = 1.0 / (position + 1)  # Earlier sentences get higher scores
+        
+        # Factor 3: Length score (30% weight)
+        length_score = len(sentence_words) / 20  # Normalize by average sentence length
+        
+        # Combine scores with weights
+        total_score = (0.4 * freq_score) + (0.3 * position_score) + (0.3 * length_score)
+        sentence_scores[sentence] = total_score
     
     # Select number of sentences based on length
     num_sentences = len(sentences)
     if summary_length == 'short':
-        select_count = max(1, num_sentences // 4)
+        select_count = max(2, num_sentences // 4)  # At least 2 sentences
     elif summary_length == 'long':
-        select_count = max(2, num_sentences // 2)
+        select_count = max(3, num_sentences // 2)  # At least 3 sentences
     else:  # medium
-        select_count = max(1, num_sentences // 3)
+        select_count = max(2, num_sentences // 3)  # At least 2 sentences
     
     # Get top sentences
     summary_sentences = sorted(sentence_scores.items(), key=lambda x: x[1], reverse=True)[:select_count]
@@ -84,17 +95,29 @@ def summarize_text(text, bullet_points=False, summary_length='medium'):
     
     # Add bullet points if requested
     if bullet_points:
-        # Split into smaller chunks based on length
-        if summary_length == 'short':
-            chunk_size = 2  # Fewer, larger chunks for short summaries
-        elif summary_length == 'long':
-            chunk_size = 4  # More, smaller chunks for long summaries
-        else:  # medium
-            chunk_size = 3  # Balanced chunks for medium summaries
+        # Split into meaningful chunks
+        chunks = []
+        current_chunk = []
+        
+        for sentence in summary_sentences:
+            current_chunk.append(sentence)
             
-        # Split the summary into chunks
-        chunks = [s.strip() for s in summary.split('.') if s.strip()]
-        chunks = ['. '.join(chunks[i:i + chunk_size]) for i in range(0, len(chunks), chunk_size)]
+            # Determine chunk size based on summary length
+            if summary_length == 'short':
+                target_chunk_size = 2
+            elif summary_length == 'long':
+                target_chunk_size = 3
+            else:  # medium
+                target_chunk_size = 2
+            
+            # Create a chunk when we reach the target size or at the end
+            if len(current_chunk) >= target_chunk_size:
+                chunks.append('. '.join(current_chunk))
+                current_chunk = []
+        
+        # Add any remaining sentences as the last chunk
+        if current_chunk:
+            chunks.append('. '.join(current_chunk))
         
         # Format with bullet points
         summary = '\n'.join(f'• {chunk}' for chunk in chunks)
