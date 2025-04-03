@@ -30,23 +30,16 @@ except LookupError:
     nltk.download('averaged_perceptron_tagger')
 
 # Initialize the model and tokenizer
-try:
-    tokenizer = AutoTokenizer.from_pretrained('facebook/mbart-large-50-many-to-many-mmt')
-    model = AutoModelForSeq2SeqLM.from_pretrained('facebook/mbart-large-50-many-to-many-mmt')
-except Exception as e:
-    print(f"Error loading model: {e}")
-    tokenizer = None
-    model = None
+tokenizer = None
+model = None
 
 def load_model():
     """Load the model only when needed."""
-    global summarizer
-    if summarizer is None:
+    global tokenizer, model
+    if tokenizer is None or model is None:
         try:
-            model_name = "facebook/mbart-large-50-many-to-many-mmt"
-            tokenizer = AutoTokenizer.from_pretrained(model_name)
-            model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
-            summarizer = pipeline("summarization", model=model, tokenizer=tokenizer)
+            tokenizer = AutoTokenizer.from_pretrained('facebook/bart-base')
+            model = AutoModelForSeq2SeqLM.from_pretrained('facebook/bart-base', device_map='auto', low_cpu_mem_usage=True)
         except Exception as e:
             print(f"Model loading error: {e}")
             return False
@@ -260,7 +253,7 @@ def summarize_text_api(request):
         if not text:
             return JsonResponse({'error': 'Lütfen özetlenecek bir metin girin.'})
             
-        if not model or not tokenizer:
+        if not load_model():
             return JsonResponse({'error': 'Model yüklenemedi. Lütfen daha sonra tekrar deneyin.'})
             
         try:
