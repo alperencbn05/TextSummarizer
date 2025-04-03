@@ -2,6 +2,20 @@
 
 {% block content %}
 <div class="container">
+    {% if messages %}
+    <div class="message-container">
+        {% for message in messages %}
+        <div class="custom-alert alert-{{ message.tags }} fade show" role="alert">
+            <div class="alert-content">
+                <i class="fas {% if message.tags == 'error' %}fa-exclamation-circle{% elif message.tags == 'success' %}fa-check-circle{% elif message.tags == 'info' %}fa-info-circle{% else %}fa-bell{% endif %} me-2"></i>
+                {{ message }}
+            </div>
+            <button type="button" class="btn-close" onclick="this.parentElement.style.display='none'" aria-label="Close"></button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     <div class="row justify-content-center">
         <div class="col-md-8">
             <div class="card shadow-sm">
@@ -16,49 +30,58 @@
                         <div class="mb-4">
                             <label for="id_text" class="form-label fw-bold">Enter your text:</label>
                             <textarea name="text" id="id_text" class="form-control form-control-lg" rows="5" 
-                                    placeholder="Paste your text here to summarize..."></textarea>
+                                    placeholder="Paste your text here to summarize...">{{ original_text }}</textarea>
                         </div>
                         <div class="mb-4">
                             <label for="id_summary_length" class="form-label fw-bold">Summary Length:</label>
-                            <select name="summary_length" id="id_summary_length" class="form-select form-select-lg">
-                                <option value="short">Very Concise</option>
-                                <option value="medium" selected>Balanced</option>
-                                <option value="long">Detailed</option>
+                            <select name="summary_length" id="id_summary_length" class="form-select">
+                                <option value="short" {% if summary_length == 'short' %}selected{% endif %} {% if not user.is_authenticated %}disabled{% endif %}>Short</option>
+                                <option value="medium" {% if summary_length == 'medium' %}selected{% endif %}>Medium</option>
+                                <option value="long" {% if summary_length == 'long' %}selected{% endif %} {% if not user.is_authenticated %}disabled{% endif %}>Long</option>
                             </select>
+                            {% if not user.is_authenticated %}
+                            <small class="text-muted d-block mt-1">
+                                <i class="fas fa-lock me-1"></i>Short and long options require login
+                            </small>
+                            {% endif %}
                         </div>
                         <div class="mb-4 form-check">
-                            <input type="checkbox" name="bullet_points" id="id_bullet_points" class="form-check-input">
+                            <input type="checkbox" name="bullet_points" id="id_bullet_points" class="form-check-input"
+                                   {% if bullet_points %}checked{% endif %}
+                                   {% if not user.is_authenticated %}disabled{% endif %}>
                             <label class="form-check-label" for="id_bullet_points">Show as bullet points</label>
+                            {% if not user.is_authenticated %}
+                            <small class="text-muted d-block mt-1">
+                                <i class="fas fa-lock me-1"></i>Bullet points feature requires login
+                            </small>
+                            {% endif %}
                         </div>
                         <div class="d-grid">
-                            <button type="submit" class="btn btn-primary btn-lg">
+                            <button type="submit" class="btn btn-primary">
                                 <i class="fas fa-compress-alt me-2"></i>Summarize
                             </button>
                         </div>
                     </form>
 
-                    {% if error %}
-                        <div class="alert alert-danger alert-dismissible fade show mt-3" role="alert">
-                            <i class="fas fa-exclamation-circle me-2"></i>{{ error }}
-                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                        </div>
-                    {% endif %}
-
-                    {% if summary %}
+                    {% if summary_text %}
                         <div class="mt-4">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <h4 class="fw-bold mb-0">
-                                    <i class="fas fa-file-alt me-2"></i>Summary:
-                                </h4>
-                                <button class="btn btn-outline-primary btn-sm" onclick="copySummary()">
-                                    <i class="fas fa-copy me-1"></i>Copy
-                                </button>
+                            <div class="card bg-light border-0">
+                                <div class="card-header bg-transparent border-0 d-flex justify-content-between align-items-center">
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-file-alt me-2 text-primary"></i>Summary
+                                    </h5>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="copySummary()">
+                                        <i class="fas fa-copy me-1"></i>Copy
+                                    </button>
+                                </div>
+                                <div class="card-body">
+                                    {% if bullet_points %}
+                                        <pre class="mb-0" id="summary-text">{{ summary_text }}</pre>
+                                    {% else %}
+                                        <p class="mb-0" id="summary-text">{{ summary_text }}</p>
+                                    {% endif %}
+                                </div>
                             </div>
-                            {% if bullet_points %}
-                                <pre class="bg-light p-3 rounded shadow-sm" id="summary-text">{{ summary }}</pre>
-                            {% else %}
-                                <p class="bg-light p-3 rounded shadow-sm" id="summary-text">{{ summary }}</p>
-                            {% endif %}
                         </div>
                     {% endif %}
                 </div>
@@ -70,76 +93,159 @@
 <style>
     .card {
         border: none;
-        border-radius: 15px;
+        border-radius: 12px;
         overflow: hidden;
     }
-    .card-header {
-        border-bottom: none;
-        background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%) !important;
-    }
     .form-control, .form-select {
-        border-radius: 10px;
-        border: 1px solid #dee2e6;
-        padding: 0.8rem;
-        transition: all 0.3s ease;
+        border-radius: 8px;
+        border: 1.5px solid #e0e0e0;
+        padding: 12px 15px;
+        font-size: 0.95rem;
+        transition: all 0.2s ease;
     }
     .form-control:focus, .form-select:focus {
         border-color: #0d6efd;
-        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.15);
+        box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
+    }
+    .btn {
+        border-radius: 8px;
+        padding: 12px 20px;
+        font-size: 0.95rem;
+        font-weight: 500;
+        transition: all 0.2s ease;
+    }
+    .btn:hover {
+        transform: translateY(-1px);
     }
     .btn-primary {
+        background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+        border: none;
+    }
+    #summary-text {
+        font-size: 0.95rem;
+        line-height: 1.6;
+        color: #2c3e50;
+    }
+    .bg-light {
+        background-color: #f8f9fa !important;
+    }
+
+    .message-container {
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 1050;
+        width: 90%;
+        max-width: 500px;
+    }
+
+    .custom-alert {
+        background: #fff;
         border-radius: 10px;
         padding: 1rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        animation: slideDown 0.3s ease-out;
+    }
+
+    .custom-alert.alert-error {
+        background: #fee2e2;
+        border-left: 4px solid #ef4444;
+        color: #991b1b;
+    }
+
+    .custom-alert.alert-success {
+        background: #dcfce7;
+        border-left: 4px solid #22c55e;
+        color: #166534;
+    }
+
+    .custom-alert.alert-info {
+        background: #dbeafe;
+        border-left: 4px solid #3b82f6;
+        color: #1e40af;
+    }
+
+    .custom-alert .alert-content {
+        display: flex;
+        align-items: center;
+        font-size: 0.95rem;
         font-weight: 500;
-        transition: all 0.3s ease;
     }
-    .btn-primary:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 5px 15px rgba(13, 110, 253, 0.3);
+
+    .custom-alert .btn-close {
+        padding: 0.5rem;
+        margin: -0.5rem -0.5rem -0.5rem 0.5rem;
+        opacity: 0.7;
+        transition: all 0.2s ease;
+        background: none;
+        border: none;
+        font-size: 1.25rem;
+        cursor: pointer;
+        color: currentColor;
     }
-    .form-check-input:checked {
-        background-color: #0d6efd;
-        border-color: #0d6efd;
+
+    .custom-alert .btn-close::before {
+        content: "×";
     }
-    .form-check-input:focus {
-        border-color: #0d6efd;
-        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.15);
+
+    .custom-alert .btn-close:hover {
+        opacity: 1;
     }
-    pre, p {
-        font-size: 1.1rem;
-        line-height: 1.6;
+
+    @keyframes slideDown {
+        from {
+            transform: translateY(-100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateY(0);
+            opacity: 1;
+        }
     }
-    .btn-outline-primary {
-        border-radius: 8px;
-        padding: 0.5rem 1rem;
-        transition: all 0.3s ease;
-    }
-    .btn-outline-primary:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 3px 8px rgba(13, 110, 253, 0.2);
+
+    @media (max-width: 576px) {
+        .message-container {
+            width: 95%;
+            top: 10px;
+        }
     }
 </style>
 
 <script>
 function copySummary() {
-    const summaryText = document.getElementById('summary-text').textContent;
+    const summaryText = document.getElementById('summary-text').innerText;
     navigator.clipboard.writeText(summaryText).then(() => {
-        // Show success message
-        const button = document.querySelector('.btn-outline-primary');
-        const originalText = button.innerHTML;
-        button.innerHTML = '<i class="fas fa-check me-1"></i>Copied!';
-        button.classList.remove('btn-outline-primary');
-        button.classList.add('btn-success');
+        const copyBtn = event.target.closest('.btn');
+        const originalHtml = copyBtn.innerHTML;
+        copyBtn.innerHTML = '<i class="fas fa-check me-1"></i>Copied!';
+        copyBtn.classList.remove('btn-outline-primary');
+        copyBtn.classList.add('btn-success');
         
-        // Reset button after 2 seconds
         setTimeout(() => {
-            button.innerHTML = originalText;
-            button.classList.remove('btn-success');
-            button.classList.add('btn-outline-primary');
+            copyBtn.innerHTML = originalHtml;
+            copyBtn.classList.remove('btn-success');
+            copyBtn.classList.add('btn-outline-primary');
         }, 2000);
-    }).catch(err => {
-        console.error('Failed to copy text: ', err);
     });
 }
+
+// Auto-hide alerts after 5 seconds
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(function() {
+        document.querySelectorAll('.custom-alert').forEach(function(alert) {
+            alert.style.opacity = '0';
+            alert.style.transform = 'translateY(-100%)';
+            alert.style.transition = 'all 0.3s ease-out';
+            setTimeout(function() {
+                alert.style.display = 'none';
+            }, 300);
+        });
+    }, 5000);
+});
 </script>
 {% endblock %} 

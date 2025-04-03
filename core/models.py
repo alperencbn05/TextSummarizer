@@ -16,3 +16,14 @@ class Summary(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+
+class GuestUsage(models.Model):
+    ip_address = models.GenericIPAddressField()
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Guest Usage'
+        verbose_name_plural = 'Guest Usages'
+
+    def __str__(self):
+        return f"{self.ip_address} - {self.timestamp}"

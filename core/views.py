@@ -3,8 +3,9 @@ from django.contrib.auth import login, authenticate, logout
 from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
+from django.utils import timezone
 from .forms import TextForm
-from .models import Summary
+from .models import Summary, GuestUsage
 import nltk
 from nltk.tokenize import sent_tokenize, word_tokenize
 from nltk.corpus import stopwords
@@ -12,6 +13,8 @@ from nltk.probability import FreqDist
 from string import punctuation
 import re
 import random
+import requests
+import json
 
 # Download required NLTK data
 try:
@@ -43,20 +46,71 @@ def get_stop_words():
     stop_words.update(punctuation)
     return stop_words
 
+def get_chatgpt_summary(text, length='medium'):
+    """Get summary from ChatGPT free API."""
+    try:
+        # Free ChatGPT API endpoint
+        url = "https://free.churchless.tech/v1/chat/completions"
+        
+        # Adjust prompt based on length
+        if length == 'short':
+            prompt = f"Summarize this text very briefly in 2-3 sentences: {text}"
+        elif length == 'long':
+            prompt = f"Provide a detailed summary of this text, covering all main points: {text}"
+        else:  # medium
+            prompt = f"Summarize this text in a balanced way, covering the key points: {text}"
+
+        # Prepare the request
+        headers = {
+            'Content-Type': 'application/json'
+        }
+        
+        data = {
+            "model": "gpt-3.5-turbo",
+            "messages": [
+                {"role": "system", "content": "You are a helpful assistant that summarizes text."},
+                {"role": "user", "content": prompt}
+            ]
+        }
+
+        # Make the request with a shorter timeout
+        response = requests.post(url, headers=headers, data=json.dumps(data), timeout=10)
+        
+        # Only proceed if we get a successful response
+        if response.status_code == 200:
+            result = response.json()
+            summary = result['choices'][0]['message']['content'].strip()
+            return summary
+        
+        return None
+        
+    except Exception as e:
+        print(f"ChatGPT API Error: {str(e)}")
+        return None
+
 def summarize_text(text, bullet_points=False, summary_length='medium'):
     """Summarize the given text."""
+    # Try ChatGPT first, but don't wait for it if it's slow
+    try:
+        summary = get_chatgpt_summary(text, summary_length)
+        if summary:
+            if bullet_points:
+                return '\n'.join(f'• {s.strip()}' for s in summary.split('.') if s.strip())
+            return summary
+    except:
+        pass
+    
+    # If ChatGPT fails or is slow, use the existing algorithm
     # Determine if text is Turkish
     is_turkish = is_turkish_text(text)
     
     # Split into sentences based on language
     if is_turkish:
-        # Turkish sentence delimiters - use regex instead of NLTK
         sentences = re.split(r'[.!?]+', text)
     else:
         try:
             sentences = sent_tokenize(text)
         except:
-            # Fallback to regex if NLTK tokenizer fails
             sentences = re.split(r'[.!?]+', text)
     
     # Clean sentences
@@ -66,7 +120,6 @@ def summarize_text(text, bullet_points=False, summary_length='medium'):
     try:
         words = word_tokenize(text.lower())
     except:
-        # Fallback to simple word splitting if NLTK tokenizer fails
         words = re.findall(r'\b\w+\b', text.lower())
     
     stop_words = get_stop_words()
@@ -85,7 +138,6 @@ def summarize_text(text, bullet_points=False, summary_length='medium'):
     
     # Add randomness to sentence scores
     for sentence in sentence_scores:
-        # Add a random factor between 0.5 and 1.5 to each sentence score
         random_factor = random.uniform(0.5, 1.5)
         sentence_scores[sentence] *= random_factor
     
@@ -103,23 +155,19 @@ def summarize_text(text, bullet_points=False, summary_length='medium'):
     
     # Get all sentences with their scores
     all_sentences = list(sentence_scores.items())
-    
-    # Shuffle all sentences first
     random.shuffle(all_sentences)
-    
-    # Then sort by score
     all_sentences = sorted(all_sentences, key=lambda x: x[1], reverse=True)
     
     # Take top sentences
     summary_sentences = all_sentences[:select_count]
-    
-    # Extract just the sentences
     summary_sentences = [s[0] for s in summary_sentences]
-    
+    summary = ' '.join(summary_sentences)
+
     # Format summary
     if bullet_points:
-        return '\n'.join(f'• {s}' for s in summary_sentences)
-    return ' '.join(summary_sentences)
+        summary = '\n'.join(f'• {s.strip()}' for s in summary.split('.') if s.strip())
+    
+    return summary
 
 def register_view(request):
     if request.method == 'POST':
@@ -166,42 +214,82 @@ def delete_summary(request, summary_id):
         messages.error(request, 'Summary not found.')
     return redirect('history')
 
-def home(request):
-    if request.method == 'POST':
-        form = TextForm(request.POST)
-        if form.is_valid():
-            text = form.cleaned_data['text']
-            bullet_points = form.cleaned_data['bullet_points']
-            summary_length = form.cleaned_data['summary_length']
-            
-            try:
-                summary = summarize_text(text, bullet_points, summary_length)
-                
-                # Save summary if user is logged in
-                if request.user.is_authenticated:
-                    Summary.objects.create(
-                        user=request.user,
-                        original_text=text,
-                        summary_text=summary,
-                        bullet_points=bullet_points,
-                        summary_length=summary_length
-                    )
-                
-                return render(request, 'core/home.html', {
-                    'form': form,
-                    'summary': summary,
-                    'original_text': text,
-                    'bullet_points': bullet_points
-                })
-            except Exception as e:
-                return render(request, 'core/home.html', {
-                    'form': form,
-                    'error': str(e)
-                })
-    else:
-        form = TextForm()
+def is_meaningful_text(text):
+    """Check if the text is meaningful enough to summarize."""
+    # Count words (excluding common meaningless patterns)
+    words = [w for w in text.split() if not w.replace('a', '').replace('s', '').replace('d', '').isspace()]
     
-    return render(request, 'core/home.html', {'form': form})
+    # Check if text has at least 3 different words and 10 total words
+    unique_words = set(words)
+    return len(unique_words) >= 3 and len(words) >= 10
+
+def home(request):
+    context = {}
+    
+    # Check if user is accessing as guest
+    if request.GET.get('guest') == 'true':
+        messages.info(request, 'You are continuing as a guest. Login to access bullet points and save your summaries.')
+    
+    if request.method == 'POST':
+        text = request.POST.get('text', '').strip()
+        summary_length = request.POST.get('summary_length', 'medium')
+        bullet_points = request.POST.get('bullet_points') == 'on'
+        
+        # Force medium length for guests
+        if not request.user.is_authenticated and summary_length != 'medium':
+            summary_length = 'medium'
+        
+        # Store form data in context
+        context.update({
+            'original_text': text,
+            'summary_length': summary_length,
+            'bullet_points': bullet_points
+        })
+        
+        if not text:
+            messages.error(request, 'Please enter some text to summarize.')
+            return render(request, 'core/home.html', context)
+
+        if not is_meaningful_text(text):
+            messages.error(request, 'Please enter meaningful text with at least 10 words to generate a summary.')
+            return render(request, 'core/home.html', context)
+
+        try:
+            # Generate summary based on user type
+            if not request.user.is_authenticated:
+                # Track guest usage
+                GuestUsage.objects.create(
+                    ip_address=request.META.get('REMOTE_ADDR'),
+                    timestamp=timezone.now()
+                )
+                
+                # Generate summary for guest (without bullet points and force medium length)
+                summary_text = summarize_text(text, bullet_points=False, summary_length='medium')
+            else:
+                # Generate summary for logged-in user (with all features)
+                summary_text = summarize_text(text, bullet_points=bullet_points, summary_length=summary_length)
+                
+                # Save summary for logged-in users
+                Summary.objects.create(
+                    user=request.user,
+                    original_text=text,
+                    summary_text=summary_text,
+                    bullet_points=bullet_points,
+                    summary_length=summary_length
+                )
+            
+            if not summary_text.strip():
+                raise ValueError("Could not generate a meaningful summary.")
+            
+            # Add summary to context
+            context['summary_text'] = summary_text
+            return render(request, 'core/home.html', context)
+            
+        except Exception as e:
+            messages.error(request, 'Could not generate a summary. Please check if your text is meaningful and try again.')
+            return render(request, 'core/home.html', context)
+
+    return render(request, 'core/home.html', context)
 
 def custom_logout(request):
     logout(request)
