@@ -14,7 +14,8 @@ from string import punctuation
 import re
 import math
 from collections import defaultdict
-import random
+from transformers import pipeline, AutoTokenizer, AutoModelForSeq2SeqGeneration
+import torch
 
 # Download required NLTK data
 try:
@@ -25,6 +26,16 @@ except LookupError:
     nltk.download('punkt')
     nltk.download('stopwords')
     nltk.download('averaged_perceptron_tagger')
+
+# Initialize the Turkish summarization model
+try:
+    model_name = "facebook/mbart-large-50-many-to-many-mmt"
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModelForSeq2SeqGeneration.from_pretrained(model_name)
+    summarizer = pipeline("summarization", model=model, tokenizer=tokenizer)
+except Exception as e:
+    print(f"Model loading error: {e}")
+    summarizer = None
 
 def is_turkish_text(text):
     """Check if the text contains Turkish characters."""
@@ -46,118 +57,58 @@ def get_stop_words():
     stop_words.update(punctuation)
     return stop_words
 
-def calculate_tf_idf(sentences):
-    """Calculate TF-IDF scores for words in sentences."""
-    stop_words = get_stop_words()
-    word_freq = defaultdict(int)
-    word_doc_freq = defaultdict(int)
-    
-    # Count word frequencies and document frequencies
-    for sentence in sentences:
-        words = [word.lower() for word in re.findall(r'\b\w+\b', sentence) 
-                if word.lower() not in stop_words and len(word) > 2]
-        unique_words = set(words)
-        
-        for word in words:
-            word_freq[word] += 1
-        for word in unique_words:
-            word_doc_freq[word] += 1
-    
-    # Calculate TF-IDF scores
-    tf_idf_scores = {}
-    num_sentences = len(sentences)
-    
-    for word, freq in word_freq.items():
-        tf = freq / sum(word_freq.values())
-        idf = math.log(num_sentences / (word_doc_freq[word] + 1))
-        tf_idf_scores[word] = tf * idf
-    
-    return tf_idf_scores
-
 def summarize_text(text, bullet_points=False, summary_length='medium'):
-    """Summarize the given text using TF-IDF and improved sentence scoring."""
+    """Summarize the given text using Hugging Face's Turkish model."""
     # Clean and preprocess text
     text = re.sub(r'\s+', ' ', text).strip()
     
-    # Split into sentences properly
-    sentences = re.split(r'[.!?]+', text)
-    sentences = [s.strip() for s in sentences if s.strip()]
-    
-    if not sentences:
+    if not text:
         return ""
     
-    # Calculate TF-IDF scores
-    tf_idf_scores = calculate_tf_idf(sentences)
-    
-    # Calculate sentence scores
-    sentence_scores = {}
-    for sentence in sentences:
-        # Get words in sentence
-        words = [word.lower() for word in re.findall(r'\b\w+\b', sentence) 
-                if word.lower() not in get_stop_words() and len(word) > 2]
-        
-        # Calculate sentence score based on TF-IDF
-        tf_idf_score = sum(tf_idf_scores.get(word, 0) for word in words)
-        
-        # Position score (earlier sentences are more important)
-        position = sentences.index(sentence)
-        position_score = 1.0 / (position + 1)
-        
-        # Length score (prefer medium-length sentences)
-        length_score = 1.0 - abs(len(words) - 10) / 20  # Peak at 10 words
-        
-        # Combine scores with weights
-        total_score = (0.5 * tf_idf_score) + (0.3 * position_score) + (0.2 * length_score)
-        sentence_scores[sentence] = total_score
-    
-    # Select number of sentences based on length
-    num_sentences = len(sentences)
-    if summary_length == 'short':
-        select_count = max(2, num_sentences // 5)  # 20% of sentences
-    elif summary_length == 'long':
-        select_count = max(4, num_sentences // 2)  # 50% of sentences
-    else:  # medium
-        select_count = max(3, num_sentences // 3)  # 33% of sentences
-    
-    # Get top sentences and sort by original position
-    summary_sentences = sorted(sentence_scores.items(), key=lambda x: x[1], reverse=True)[:select_count]
-    summary_sentences = [s[0] for s in summary_sentences]
-    summary_sentences.sort(key=lambda x: sentences.index(x))
-    
-    # Format output based on bullet points
-    if bullet_points:
-        # Group related sentences into bullet points
-        bullet_points_list = []
-        current_point = []
-        
-        # Calculate average sentence score for grouping
-        avg_score = sum(sentence_scores[s] for s in summary_sentences) / len(summary_sentences)
-        
-        for sentence in summary_sentences:
-            current_point.append(sentence)
+    try:
+        # Use Hugging Face model for summarization
+        if summarizer is not None:
+            # Set max length based on summary_length parameter
+            if summary_length == 'short':
+                max_length = 50
+            elif summary_length == 'long':
+                max_length = 150
+            else:  # medium
+                max_length = 100
             
-            # Create new bullet point if:
-            # 1. We have 2 or more sentences and current sentence score is significantly different
-            # 2. We have 3 sentences (max per bullet point)
-            # 3. This is the last sentence
-            if (len(current_point) >= 2 and sentence_scores[sentence] < avg_score * 0.8) or \
-               len(current_point) >= 3 or \
-               sentence == summary_sentences[-1]:
-                # Clean up the bullet point text
-                point_text = ' '.join(current_point)
-                point_text = re.sub(r'\s+', ' ', point_text).strip()
-                bullet_points_list.append('• ' + point_text)
+            # Generate summary
+            summary = summarizer(text, max_length=max_length, min_length=30, do_sample=False)[0]['summary_text']
+            
+            # Format as bullet points if requested
+            if bullet_points:
+                # Split into sentences
+                sentences = re.split(r'[.!?]+', summary)
+                sentences = [s.strip() for s in sentences if s.strip()]
+                
+                # Group sentences into bullet points
+                bullet_points_list = []
                 current_point = []
-        
-        # If we still have sentences in current_point, add them as the last bullet point
-        if current_point:
-            point_text = ' '.join(current_point)
-            point_text = re.sub(r'\s+', ' ', point_text).strip()
-            bullet_points_list.append('• ' + point_text)
-        
-        return '\n'.join(bullet_points_list)
-    else:
-        return ' '.join(summary_sentences)
+                
+                for sentence in sentences:
+                    current_point.append(sentence)
+                    
+                    # Create new bullet point if we have enough sentences or at the end
+                    if len(current_point) >= 2 or sentence == sentences[-1]:
+                        point_text = ' '.join(current_point)
+                        point_text = re.sub(r'\s+', ' ', point_text).strip()
+                        bullet_points_list.append('• ' + point_text)
+                        current_point = []
+                
+                return '\n'.join(bullet_points_list)
+            else:
+                return summary
+        else:
+            # Fallback to basic summarization if model is not available
+            return "Özür dilerim, şu anda özetleme servisi kullanılamıyor. Lütfen daha sonra tekrar deneyin."
+            
+    except Exception as e:
+        print(f"Summarization error: {e}")
+        return "Özür dilerim, özetleme sırasında bir hata oluştu. Lütfen daha sonra tekrar deneyin."
 
 def register_view(request):
     if request.method == 'POST':
