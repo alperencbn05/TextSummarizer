@@ -161,13 +161,12 @@ CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1:8000',
 ]
 
-# Auto migrate on deploy
-django.setup()
-from django.core import management
-management.call_command('migrate')
-
-# Auto create superuser
+# Auto migrate and create superuser
 if 'DATABASE_URL' in os.environ:
+    django.setup()
+    from django.core import management
+    management.call_command('migrate')
+    
     from django.contrib.auth.models import User
     if not User.objects.filter(username='admin').exists():
         User.objects.create_superuser(
