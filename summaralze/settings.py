@@ -94,6 +94,10 @@ if 'DATABASE_URL' in os.environ:
         conn_max_age=600,
         conn_health_checks=True,
     )
+    # Force SSL for PostgreSQL
+    DATABASES['default']['OPTIONS'] = {
+        'sslmode': 'require'
+    }
 
 
 # Password validation
