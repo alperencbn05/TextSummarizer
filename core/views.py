@@ -12,6 +12,8 @@ from nltk.corpus import stopwords
 from nltk.probability import FreqDist
 from string import punctuation
 import re
+import math
+from collections import defaultdict
 import random
 
 # Download required NLTK data
@@ -44,8 +46,36 @@ def get_stop_words():
     stop_words.update(punctuation)
     return stop_words
 
+def calculate_tf_idf(sentences):
+    """Calculate TF-IDF scores for words in sentences."""
+    stop_words = get_stop_words()
+    word_freq = defaultdict(int)
+    word_doc_freq = defaultdict(int)
+    
+    # Count word frequencies and document frequencies
+    for sentence in sentences:
+        words = [word.lower() for word in re.findall(r'\b\w+\b', sentence) 
+                if word.lower() not in stop_words and len(word) > 2]
+        unique_words = set(words)
+        
+        for word in words:
+            word_freq[word] += 1
+        for word in unique_words:
+            word_doc_freq[word] += 1
+    
+    # Calculate TF-IDF scores
+    tf_idf_scores = {}
+    num_sentences = len(sentences)
+    
+    for word, freq in word_freq.items():
+        tf = freq / sum(word_freq.values())
+        idf = math.log(num_sentences / (word_doc_freq[word] + 1))
+        tf_idf_scores[word] = tf * idf
+    
+    return tf_idf_scores
+
 def summarize_text(text, bullet_points=False, summary_length='medium'):
-    """Summarize the given text using improved NLP techniques."""
+    """Summarize the given text using TF-IDF and improved sentence scoring."""
     # Clean and preprocess text
     text = re.sub(r'\s+', ' ', text).strip()
     
@@ -56,41 +86,38 @@ def summarize_text(text, bullet_points=False, summary_length='medium'):
     if not sentences:
         return ""
     
-    # Get word frequencies with improved stopword handling
-    words = re.findall(r'\b\w+\b', text.lower())
-    stop_words = get_stop_words()
-    words = [word for word in words if word not in stop_words and len(word) > 2]
-    word_freq = FreqDist(words)
+    # Calculate TF-IDF scores
+    tf_idf_scores = calculate_tf_idf(sentences)
     
-    # Calculate sentence scores with improved weighting
+    # Calculate sentence scores
     sentence_scores = {}
     for sentence in sentences:
-        # Factor 1: Word frequency score (35% weight)
-        sentence_words = re.findall(r'\b\w+\b', sentence.lower())
-        freq_score = sum(word_freq[word] for word in sentence_words if word in word_freq)
+        # Get words in sentence
+        words = [word.lower() for word in re.findall(r'\b\w+\b', sentence) 
+                if word.lower() not in get_stop_words() and len(word) > 2]
         
-        # Factor 2: Position score (25% weight)
+        # Calculate sentence score based on TF-IDF
+        tf_idf_score = sum(tf_idf_scores.get(word, 0) for word in words)
+        
+        # Position score (earlier sentences are more important)
         position = sentences.index(sentence)
         position_score = 1.0 / (position + 1)
         
-        # Factor 3: Length score (20% weight)
-        length_score = min(len(sentence_words) / 10, 1.0)  # Cap at 10 words
-        
-        # Factor 4: Keyword density (20% weight)
-        keyword_density = len([w for w in sentence_words if w in word_freq]) / max(len(sentence_words), 1)
+        # Length score (prefer medium-length sentences)
+        length_score = 1.0 - abs(len(words) - 10) / 20  # Peak at 10 words
         
         # Combine scores with weights
-        total_score = (0.35 * freq_score) + (0.25 * position_score) + (0.20 * length_score) + (0.20 * keyword_density)
+        total_score = (0.5 * tf_idf_score) + (0.3 * position_score) + (0.2 * length_score)
         sentence_scores[sentence] = total_score
     
     # Select number of sentences based on length
     num_sentences = len(sentences)
     if summary_length == 'short':
-        select_count = max(2, num_sentences // 4)  # 25% of sentences
+        select_count = max(2, num_sentences // 5)  # 20% of sentences
     elif summary_length == 'long':
-        select_count = max(3, num_sentences // 2)  # 50% of sentences
+        select_count = max(4, num_sentences // 2)  # 50% of sentences
     else:  # medium
-        select_count = max(2, num_sentences // 3)  # 33% of sentences
+        select_count = max(3, num_sentences // 3)  # 33% of sentences
     
     # Get top sentences and sort by original position
     summary_sentences = sorted(sentence_scores.items(), key=lambda x: x[1], reverse=True)[:select_count]
@@ -103,13 +130,30 @@ def summarize_text(text, bullet_points=False, summary_length='medium'):
         bullet_points_list = []
         current_point = []
         
+        # Calculate average sentence score for grouping
+        avg_score = sum(sentence_scores[s] for s in summary_sentences) / len(summary_sentences)
+        
         for sentence in summary_sentences:
             current_point.append(sentence)
             
-            # Create new bullet point if we have enough sentences or at the end
-            if len(current_point) >= 2 or sentence == summary_sentences[-1]:
-                bullet_points_list.append('• ' + ' '.join(current_point))
+            # Create new bullet point if:
+            # 1. We have 2 or more sentences and current sentence score is significantly different
+            # 2. We have 3 sentences (max per bullet point)
+            # 3. This is the last sentence
+            if (len(current_point) >= 2 and sentence_scores[sentence] < avg_score * 0.8) or \
+               len(current_point) >= 3 or \
+               sentence == summary_sentences[-1]:
+                # Clean up the bullet point text
+                point_text = ' '.join(current_point)
+                point_text = re.sub(r'\s+', ' ', point_text).strip()
+                bullet_points_list.append('• ' + point_text)
                 current_point = []
+        
+        # If we still have sentences in current_point, add them as the last bullet point
+        if current_point:
+            point_text = ' '.join(current_point)
+            point_text = re.sub(r'\s+', ' ', point_text).strip()
+            bullet_points_list.append('• ' + point_text)
         
         return '\n'.join(bullet_points_list)
     else:
