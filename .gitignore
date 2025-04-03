@@ -26,12 +26,12 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 media/
-staticfiles/
 
 # Virtual Environment
 venv/
 env/
 ENV/
+.env
 
 # IDE
 .idea/
@@ -44,4 +44,17 @@ ENV/
 Thumbs.db
 
 # Project specific
+*.pth
+*.bin
+*.onnx
+*.h5
+*.hdf5
+*.pkl
+*.model
+*.joblib
+*.npy
+*.npz
+*.pt
+*.pth
+*.ckpt
 database_backup.json 
