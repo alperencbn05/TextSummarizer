@@ -14,7 +14,7 @@ from string import punctuation
 import re
 import math
 from collections import defaultdict
-from transformers import pipeline, AutoTokenizer, AutoModelForSeq2SeqGeneration
+from transformers import pipeline, AutoTokenizer, AutoModelForSeq2SeqLM
 import torch
 import os
 from django.http import JsonResponse
@@ -32,7 +32,7 @@ except LookupError:
 # Initialize the model and tokenizer
 try:
     tokenizer = AutoTokenizer.from_pretrained('facebook/mbart-large-50-many-to-many-mmt')
-    model = AutoModelForSeq2SeqGeneration.from_pretrained('facebook/mbart-large-50-many-to-many-mmt')
+    model = AutoModelForSeq2SeqLM.from_pretrained('facebook/mbart-large-50-many-to-many-mmt')
 except Exception as e:
     print(f"Error loading model: {e}")
     tokenizer = None
@@ -45,7 +45,7 @@ def load_model():
         try:
             model_name = "facebook/mbart-large-50-many-to-many-mmt"
             tokenizer = AutoTokenizer.from_pretrained(model_name)
-            model = AutoModelForSeq2SeqGeneration.from_pretrained(model_name)
+            model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
             summarizer = pipeline("summarization", model=model, tokenizer=tokenizer)
         except Exception as e:
             print(f"Model loading error: {e}")
