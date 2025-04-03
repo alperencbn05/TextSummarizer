@@ -92,24 +92,12 @@ def summarize_text(text, bullet_points=False, summary_length='medium'):
             
             # Format as bullet points if requested
             if bullet_points:
-                # Split into sentences
+                # Split into sentences and clean them
                 sentences = re.split(r'[.!?]+', summary)
                 sentences = [s.strip() for s in sentences if s.strip()]
                 
-                # Group sentences into bullet points
-                bullet_points_list = []
-                current_point = []
-                
-                for sentence in sentences:
-                    current_point.append(sentence)
-                    
-                    # Create new bullet point if we have enough sentences or at the end
-                    if len(current_point) >= 2 or sentence == sentences[-1]:
-                        point_text = ' '.join(current_point)
-                        point_text = re.sub(r'\s+', ' ', point_text).strip()
-                        bullet_points_list.append('• ' + point_text)
-                        current_point = []
-                
+                # Format each sentence as a bullet point
+                bullet_points_list = ['• ' + sentence for sentence in sentences]
                 return '\n'.join(bullet_points_list)
             else:
                 return summary
@@ -165,14 +153,11 @@ def summarize_text_nltk(text, bullet_points=False, summary_length='medium'):
     # Sort sentences by their original order
     summary_sentences.sort(key=lambda x: sentences.index(x))
     
-    # Join sentences
-    summary = ' '.join(summary_sentences)
-    
-    # Add bullet points if requested
+    # Format as bullet points if requested
     if bullet_points:
-        summary = '\n• ' + '\n• '.join(summary_sentences)
-    
-    return summary
+        return '\n'.join(['• ' + sentence for sentence in summary_sentences])
+    else:
+        return ' '.join(summary_sentences)
 
 def register_view(request):
     if request.method == 'POST':
