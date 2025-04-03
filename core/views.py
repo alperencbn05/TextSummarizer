@@ -45,28 +45,13 @@ def get_stop_words():
     return stop_words
 
 def summarize_text(text, bullet_points=False, summary_length='medium'):
-    """Summarize the given text using NLTK."""
-    # Determine if text is Turkish
-    is_turkish = is_turkish_text(text)
-    
-    # Split into sentences based on language
-    if is_turkish:
-        sentences = re.split(r'[.!?]+', text)
-    else:
-        try:
-            sentences = sent_tokenize(text)
-        except:
-            sentences = re.split(r'[.!?]+', text)
-    
-    # Clean sentences
+    """Summarize the given text using a simple but effective algorithm."""
+    # Split into sentences
+    sentences = re.split(r'[.!?]+', text)
     sentences = [s.strip() for s in sentences if s.strip()]
     
-    # Tokenize words and calculate frequencies
-    try:
-        words = word_tokenize(text.lower())
-    except:
-        words = re.findall(r'\b\w+\b', text.lower())
-    
+    # Get word frequencies
+    words = re.findall(r'\b\w+\b', text.lower())
     stop_words = get_stop_words()
     words = [word for word in words if word not in stop_words]
     word_freq = FreqDist(words)
@@ -74,19 +59,11 @@ def summarize_text(text, bullet_points=False, summary_length='medium'):
     # Calculate sentence scores
     sentence_scores = {}
     for sentence in sentences:
-        for word in re.findall(r'\b\w+\b', sentence.lower()):
-            if word in word_freq:
-                if sentence not in sentence_scores:
-                    sentence_scores[sentence] = word_freq[word]
-                else:
-                    sentence_scores[sentence] += word_freq[word]
+        sentence_words = re.findall(r'\b\w+\b', sentence.lower())
+        score = sum(word_freq[word] for word in sentence_words if word in word_freq)
+        sentence_scores[sentence] = score
     
-    # Add randomness to sentence scores
-    for sentence in sentence_scores:
-        random_factor = random.uniform(0.5, 1.5)
-        sentence_scores[sentence] *= random_factor
-    
-    # Select top sentences based on summary length
+    # Select number of sentences based on length
     num_sentences = len(sentences)
     if summary_length == 'short':
         select_count = max(1, num_sentences // 4)
@@ -95,20 +72,14 @@ def summarize_text(text, bullet_points=False, summary_length='medium'):
     else:  # medium
         select_count = max(1, num_sentences // 3)
     
-    # Add more randomness to the number of sentences selected
-    select_count = max(1, int(select_count * random.uniform(0.7, 1.3)))
-    
-    # Get all sentences with their scores
-    all_sentences = list(sentence_scores.items())
-    random.shuffle(all_sentences)
-    all_sentences = sorted(all_sentences, key=lambda x: x[1], reverse=True)
-    
-    # Take top sentences
-    summary_sentences = all_sentences[:select_count]
+    # Get top sentences
+    summary_sentences = sorted(sentence_scores.items(), key=lambda x: x[1], reverse=True)[:select_count]
     summary_sentences = [s[0] for s in summary_sentences]
+    
+    # Join sentences
     summary = ' '.join(summary_sentences)
-
-    # Format summary
+    
+    # Add bullet points if requested
     if bullet_points:
         summary = '\n'.join(f'• {s.strip()}' for s in summary.split('.') if s.strip())
     
@@ -161,12 +132,11 @@ def delete_summary(request, summary_id):
 
 def is_meaningful_text(text):
     """Check if the text is meaningful enough to summarize."""
-    # Count words (excluding common meaningless patterns)
-    words = [w for w in text.split() if not w.replace('a', '').replace('s', '').replace('d', '').isspace()]
+    # Count words
+    words = [w for w in text.split() if w.strip()]
     
-    # Check if text has at least 2 different words and 5 total words
-    unique_words = set(words)
-    return len(unique_words) >= 2 and len(words) >= 5
+    # Check if text has at least 3 words
+    return len(words) >= 3
 
 def home(request):
     context = {}
@@ -196,7 +166,7 @@ def home(request):
             return render(request, 'core/home.html', context)
 
         if not is_meaningful_text(text):
-            messages.error(request, 'Please enter meaningful text with at least 10 words to generate a summary.')
+            messages.error(request, 'Lütfen özetlemek için en az 3 kelimelik bir metin girin.')
             return render(request, 'core/home.html', context)
 
         try:
@@ -224,14 +194,14 @@ def home(request):
                 )
             
             if not summary_text.strip():
-                raise ValueError("Could not generate a meaningful summary.")
+                raise ValueError("Özet oluşturulamadı. Lütfen daha uzun bir metin girin.")
             
             # Add summary to context
             context['summary_text'] = summary_text
             return render(request, 'core/home.html', context)
             
         except Exception as e:
-            messages.error(request, 'Could not generate a summary. Please check if your text is meaningful and try again.')
+            messages.error(request, 'Özet oluşturulamadı. Lütfen daha uzun ve anlamlı bir metin girin.')
             return render(request, 'core/home.html', context)
 
     return render(request, 'core/home.html', context)
