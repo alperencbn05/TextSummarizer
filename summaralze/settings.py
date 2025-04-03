@@ -28,9 +28,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-your-secret-key-here')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = ['*']  # Daha sonra domain adınızı ekleyeceğiz
+ALLOWED_HOSTS = ['*']  # Render için tüm hostlara izin ver
 
 
 # Application definition
@@ -136,8 +136,8 @@ CRISPY_TEMPLATE_PACK = "bootstrap5"
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
 # Security
-SECURE_SSL_REDIRECT = True
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
+SECURE_SSL_REDIRECT = False  # Render'da SSL yönlendirmesini kapat
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = False
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
