@@ -76,6 +76,9 @@ def summarize_text(text, bullet_points=False, summary_length='medium'):
     summary_sentences = sorted(sentence_scores.items(), key=lambda x: x[1], reverse=True)[:select_count]
     summary_sentences = [s[0] for s in summary_sentences]
     
+    # Sort sentences by their original position
+    summary_sentences.sort(key=lambda x: sentences.index(x))
+    
     # Join sentences
     summary = ' '.join(summary_sentences)
     
