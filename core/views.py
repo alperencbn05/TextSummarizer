@@ -16,6 +16,8 @@ import math
 from collections import defaultdict
 from transformers import pipeline, AutoTokenizer, AutoModelForSeq2SeqGeneration
 import torch
+import os
+from django.http import JsonResponse
 
 # Download required NLTK data
 try:
@@ -27,15 +29,28 @@ except LookupError:
     nltk.download('stopwords')
     nltk.download('averaged_perceptron_tagger')
 
-# Initialize the Turkish summarization model
+# Initialize the model and tokenizer
 try:
-    model_name = "facebook/mbart-large-50-many-to-many-mmt"
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModelForSeq2SeqGeneration.from_pretrained(model_name)
-    summarizer = pipeline("summarization", model=model, tokenizer=tokenizer)
+    tokenizer = AutoTokenizer.from_pretrained('facebook/mbart-large-50-many-to-many-mmt')
+    model = AutoModelForSeq2SeqGeneration.from_pretrained('facebook/mbart-large-50-many-to-many-mmt')
 except Exception as e:
-    print(f"Model loading error: {e}")
-    summarizer = None
+    print(f"Error loading model: {e}")
+    tokenizer = None
+    model = None
+
+def load_model():
+    """Load the model only when needed."""
+    global summarizer
+    if summarizer is None:
+        try:
+            model_name = "facebook/mbart-large-50-many-to-many-mmt"
+            tokenizer = AutoTokenizer.from_pretrained(model_name)
+            model = AutoModelForSeq2SeqGeneration.from_pretrained(model_name)
+            summarizer = pipeline("summarization", model=model, tokenizer=tokenizer)
+        except Exception as e:
+            print(f"Model loading error: {e}")
+            return False
+    return True
 
 def is_turkish_text(text):
     """Check if the text contains Turkish characters."""
@@ -66,6 +81,10 @@ def summarize_text(text, bullet_points=False, summary_length='medium'):
         return ""
     
     try:
+        # Load model if not already loaded
+        if not load_model():
+            return "Özür dilerim, şu anda özetleme servisi kullanılamıyor. Lütfen daha sonra tekrar deneyin."
+        
         # Use Hugging Face model for summarization
         if summarizer is not None:
             # Set max length based on summary_length parameter
@@ -103,7 +122,6 @@ def summarize_text(text, bullet_points=False, summary_length='medium'):
             else:
                 return summary
         else:
-            # Fallback to basic summarization if model is not available
             return "Özür dilerim, şu anda özetleme servisi kullanılamıyor. Lütfen daha sonra tekrar deneyin."
             
     except Exception as e:
@@ -232,3 +250,49 @@ def custom_logout(request):
     logout(request)
     messages.success(request, 'You have been successfully logged out.')
     return redirect('login')
+
+def summarize_text_api(request):
+    if request.method == 'POST':
+        text = request.POST.get('text', '')
+        summary_length = request.POST.get('summary_length', 'medium')
+        use_bullets = request.POST.get('use_bullets', 'false') == 'true'
+        
+        if not text:
+            return JsonResponse({'error': 'Lütfen özetlenecek bir metin girin.'})
+            
+        if not model or not tokenizer:
+            return JsonResponse({'error': 'Model yüklenemedi. Lütfen daha sonra tekrar deneyin.'})
+            
+        try:
+            # Generate summary based on user type
+            if not request.user.is_authenticated:
+                # Track guest usage
+                GuestUsage.objects.create(
+                    ip_address=request.META.get('REMOTE_ADDR'),
+                    timestamp=timezone.now()
+                )
+                
+                # Generate summary for guest (without bullet points and force medium length)
+                summary_text = summarize_text(text, bullet_points=False, summary_length='medium')
+            else:
+                # Generate summary for logged-in user (with all features)
+                summary_text = summarize_text(text, bullet_points=use_bullets, summary_length=summary_length)
+                
+                # Save summary for logged-in users
+                Summary.objects.create(
+                    user=request.user,
+                    original_text=text,
+                    summary_text=summary_text,
+                    bullet_points=use_bullets,
+                    summary_length=summary_length
+                )
+            
+            if not summary_text.strip():
+                return JsonResponse({'error': 'Özetlenemedi. Lütfen farklı bir metin deneyin.'})
+            
+            return JsonResponse({'summary': summary_text})
+            
+        except Exception as e:
+            return JsonResponse({'error': 'Özetleme sırasında bir hata oluştu. Lütfen daha sonra tekrar deneyin.'})
+
+    return JsonResponse({'error': 'Geçersiz istek.'})
