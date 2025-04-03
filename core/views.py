@@ -45,90 +45,75 @@ def get_stop_words():
     return stop_words
 
 def summarize_text(text, bullet_points=False, summary_length='medium'):
-    """Summarize the given text using AI principles."""
-    # Split into sentences
+    """Summarize the given text using improved NLP techniques."""
+    # Clean and preprocess text
+    text = re.sub(r'\s+', ' ', text).strip()
+    
+    # Split into sentences properly
     sentences = re.split(r'[.!?]+', text)
     sentences = [s.strip() for s in sentences if s.strip()]
     
     if not sentences:
         return ""
     
-    # Get word frequencies
+    # Get word frequencies with improved stopword handling
     words = re.findall(r'\b\w+\b', text.lower())
     stop_words = get_stop_words()
-    words = [word for word in words if word not in stop_words]
+    words = [word for word in words if word not in stop_words and len(word) > 2]
     word_freq = FreqDist(words)
     
-    # Calculate sentence scores using AI principles
+    # Calculate sentence scores with improved weighting
     sentence_scores = {}
     for sentence in sentences:
-        # Factor 1: Word frequency score (40% weight)
+        # Factor 1: Word frequency score (35% weight)
         sentence_words = re.findall(r'\b\w+\b', sentence.lower())
         freq_score = sum(word_freq[word] for word in sentence_words if word in word_freq)
         
-        # Factor 2: Position score (30% weight)
+        # Factor 2: Position score (25% weight)
         position = sentences.index(sentence)
-        position_score = 1.0 / (position + 1)  # Earlier sentences get higher scores
+        position_score = 1.0 / (position + 1)
         
         # Factor 3: Length score (20% weight)
-        length_score = len(sentence_words) / 15  # Normalize by average sentence length
+        length_score = min(len(sentence_words) / 10, 1.0)  # Cap at 10 words
         
-        # Factor 4: Keyword density (10% weight)
-        keyword_density = len([w for w in sentence_words if w in word_freq]) / len(sentence_words)
+        # Factor 4: Keyword density (20% weight)
+        keyword_density = len([w for w in sentence_words if w in word_freq]) / max(len(sentence_words), 1)
         
         # Combine scores with weights
-        total_score = (0.4 * freq_score) + (0.3 * position_score) + (0.2 * length_score) + (0.1 * keyword_density)
+        total_score = (0.35 * freq_score) + (0.25 * position_score) + (0.20 * length_score) + (0.20 * keyword_density)
         sentence_scores[sentence] = total_score
     
     # Select number of sentences based on length
     num_sentences = len(sentences)
     if summary_length == 'short':
-        select_count = max(2, num_sentences // 3)  # At least 2 sentences
+        select_count = max(2, num_sentences // 4)  # 25% of sentences
     elif summary_length == 'long':
-        select_count = max(3, num_sentences // 2)  # At least 3 sentences
+        select_count = max(3, num_sentences // 2)  # 50% of sentences
     else:  # medium
-        select_count = max(2, num_sentences // 2)  # At least 2 sentences
+        select_count = max(2, num_sentences // 3)  # 33% of sentences
     
-    # Get top sentences
+    # Get top sentences and sort by original position
     summary_sentences = sorted(sentence_scores.items(), key=lambda x: x[1], reverse=True)[:select_count]
     summary_sentences = [s[0] for s in summary_sentences]
-    
-    # Sort sentences by their original position
     summary_sentences.sort(key=lambda x: sentences.index(x))
     
-    # Join sentences
-    summary = ' '.join(summary_sentences)
-    
-    # Add bullet points if requested
+    # Format output based on bullet points
     if bullet_points:
-        # Split into meaningful chunks
-        chunks = []
-        current_chunk = []
+        # Group related sentences into bullet points
+        bullet_points_list = []
+        current_point = []
         
         for sentence in summary_sentences:
-            current_chunk.append(sentence)
+            current_point.append(sentence)
             
-            # Determine chunk size based on summary length
-            if summary_length == 'short':
-                target_chunk_size = 2
-            elif summary_length == 'long':
-                target_chunk_size = 2
-            else:  # medium
-                target_chunk_size = 2
-            
-            # Create a chunk when we reach the target size or at the end
-            if len(current_chunk) >= target_chunk_size:
-                chunks.append('. '.join(current_chunk))
-                current_chunk = []
+            # Create new bullet point if we have enough sentences or at the end
+            if len(current_point) >= 2 or sentence == summary_sentences[-1]:
+                bullet_points_list.append('• ' + ' '.join(current_point))
+                current_point = []
         
-        # Add any remaining sentences as the last chunk
-        if current_chunk:
-            chunks.append('. '.join(current_chunk))
-        
-        # Format with bullet points
-        summary = '\n'.join(f'• {chunk}' for chunk in chunks)
-    
-    return summary
+        return '\n'.join(bullet_points_list)
+    else:
+        return ' '.join(summary_sentences)
 
 def register_view(request):
     if request.method == 'POST':
