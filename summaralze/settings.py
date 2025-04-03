@@ -165,3 +165,13 @@ CSRF_TRUSTED_ORIGINS = [
 django.setup()
 from django.core import management
 management.call_command('migrate')
+
+# Auto create superuser
+if 'DATABASE_URL' in os.environ:
+    from django.contrib.auth.models import User
+    if not User.objects.filter(username='admin').exists():
+        User.objects.create_superuser(
+            username='admin',
+            email='admin@example.com',
+            password='admin123456'
+        )
