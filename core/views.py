@@ -13,8 +13,6 @@ from nltk.probability import FreqDist
 from string import punctuation
 import re
 import random
-import requests
-import json
 
 # Download required NLTK data
 try:
@@ -46,61 +44,8 @@ def get_stop_words():
     stop_words.update(punctuation)
     return stop_words
 
-def get_chatgpt_summary(text, length='medium'):
-    """Get summary from ChatGPT free API."""
-    try:
-        # Free ChatGPT API endpoint
-        url = "https://free.churchless.tech/v1/chat/completions"
-        
-        # Adjust prompt based on length
-        if length == 'short':
-            prompt = f"Summarize this text very briefly in 2-3 sentences: {text}"
-        elif length == 'long':
-            prompt = f"Provide a detailed summary of this text, covering all main points: {text}"
-        else:  # medium
-            prompt = f"Summarize this text in a balanced way, covering the key points: {text}"
-
-        # Prepare the request
-        headers = {
-            'Content-Type': 'application/json'
-        }
-        
-        data = {
-            "model": "gpt-3.5-turbo",
-            "messages": [
-                {"role": "system", "content": "You are a helpful assistant that summarizes text."},
-                {"role": "user", "content": prompt}
-            ]
-        }
-
-        # Make the request with a shorter timeout
-        response = requests.post(url, headers=headers, data=json.dumps(data), timeout=10)
-        
-        # Only proceed if we get a successful response
-        if response.status_code == 200:
-            result = response.json()
-            summary = result['choices'][0]['message']['content'].strip()
-            return summary
-        
-        return None
-        
-    except Exception as e:
-        print(f"ChatGPT API Error: {str(e)}")
-        return None
-
 def summarize_text(text, bullet_points=False, summary_length='medium'):
-    """Summarize the given text."""
-    # Try ChatGPT first, but don't wait for it if it's slow
-    try:
-        summary = get_chatgpt_summary(text, summary_length)
-        if summary:
-            if bullet_points:
-                return '\n'.join(f'• {s.strip()}' for s in summary.split('.') if s.strip())
-            return summary
-    except:
-        pass
-    
-    # If ChatGPT fails or is slow, use the existing algorithm
+    """Summarize the given text using NLTK."""
     # Determine if text is Turkish
     is_turkish = is_turkish_text(text)
     
@@ -219,9 +164,9 @@ def is_meaningful_text(text):
     # Count words (excluding common meaningless patterns)
     words = [w for w in text.split() if not w.replace('a', '').replace('s', '').replace('d', '').isspace()]
     
-    # Check if text has at least 3 different words and 10 total words
+    # Check if text has at least 2 different words and 5 total words
     unique_words = set(words)
-    return len(unique_words) >= 3 and len(words) >= 10
+    return len(unique_words) >= 2 and len(words) >= 5
 
 def home(request):
     context = {}
