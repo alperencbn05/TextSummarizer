@@ -32,14 +32,17 @@ except LookupError:
 # Initialize the model and tokenizer
 tokenizer = None
 model = None
+summarizer = None
 
 def load_model():
     """Load the model only when needed."""
-    global tokenizer, model
-    if tokenizer is None or model is None:
+    global tokenizer, model, summarizer
+    if summarizer is None:
         try:
-            tokenizer = AutoTokenizer.from_pretrained('facebook/bart-base')
-            model = AutoModelForSeq2SeqLM.from_pretrained('facebook/bart-base', device_map='auto', low_cpu_mem_usage=True)
+            model_name = "facebook/mbart-large-50-many-to-many-mmt"
+            tokenizer = AutoTokenizer.from_pretrained(model_name)
+            model = AutoModelForSeq2SeqLM.from_pretrained(model_name, device_map='auto', low_cpu_mem_usage=True)
+            summarizer = pipeline("summarization", model=model, tokenizer=tokenizer)
         except Exception as e:
             print(f"Model loading error: {e}")
             return False
@@ -74,12 +77,8 @@ def summarize_text(text, bullet_points=False, summary_length='medium'):
         return ""
     
     try:
-        # Load model if not already loaded
-        if not load_model():
-            return "Özür dilerim, şu anda özetleme servisi kullanılamıyor. Lütfen daha sonra tekrar deneyin."
-        
-        # Use Hugging Face model for summarization
-        if summarizer is not None:
+        # Try using Hugging Face model first
+        if load_model() and summarizer is not None:
             # Set max length based on summary_length parameter
             if summary_length == 'short':
                 max_length = 50
@@ -115,11 +114,65 @@ def summarize_text(text, bullet_points=False, summary_length='medium'):
             else:
                 return summary
         else:
-            return "Özür dilerim, şu anda özetleme servisi kullanılamıyor. Lütfen daha sonra tekrar deneyin."
+            # Fallback to NLTK if model loading fails
+            return summarize_text_nltk(text, bullet_points, summary_length)
             
     except Exception as e:
         print(f"Summarization error: {e}")
-        return "Özür dilerim, özetleme sırasında bir hata oluştu. Lütfen daha sonra tekrar deneyin."
+        # Fallback to NLTK if there's an error
+        return summarize_text_nltk(text, bullet_points, summary_length)
+
+def summarize_text_nltk(text, bullet_points=False, summary_length='medium'):
+    """Generate a summary using NLTK as fallback."""
+    # Tokenize the text into sentences
+    sentences = sent_tokenize(text)
+    
+    # Remove special characters and convert to lowercase
+    text = re.sub(r'[^\w\s]', '', text.lower())
+    
+    # Tokenize words
+    words = word_tokenize(text)
+    
+    # Remove stopwords and punctuation
+    stop_words = get_stop_words()
+    words = [word for word in words if word not in stop_words]
+    
+    # Calculate word frequencies
+    word_freq = defaultdict(int)
+    for word in words:
+        word_freq[word] += 1
+    
+    # Calculate sentence scores based on word frequencies
+    sentence_scores = defaultdict(int)
+    for sentence in sentences:
+        for word in word_tokenize(sentence.lower()):
+            if word in word_freq:
+                sentence_scores[sentence] += word_freq[word]
+    
+    # Select top sentences based on summary length
+    num_sentences = len(sentences)
+    if summary_length == 'short':
+        num_summary = max(1, num_sentences // 4)
+    elif summary_length == 'long':
+        num_summary = max(2, num_sentences // 2)
+    else:  # medium
+        num_summary = max(1, num_sentences // 3)
+    
+    # Get top sentences
+    summary_sentences = sorted(sentence_scores.items(), key=lambda x: x[1], reverse=True)[:num_summary]
+    summary_sentences = [s[0] for s in summary_sentences]
+    
+    # Sort sentences by their original order
+    summary_sentences.sort(key=lambda x: sentences.index(x))
+    
+    # Join sentences
+    summary = ' '.join(summary_sentences)
+    
+    # Add bullet points if requested
+    if bullet_points:
+        summary = '\n• ' + '\n• '.join(summary_sentences)
+    
+    return summary
 
 def register_view(request):
     if request.method == 'POST':
@@ -153,7 +206,7 @@ def login_view(request):
 
 @login_required
 def history_view(request):
-    summaries = Summary.objects.filter(user=request.user)
+    summaries = Summary.objects.filter(user=request.user).order_by('-created_at')
     return render(request, 'core/history.html', {'summaries': summaries})
 
 @login_required
