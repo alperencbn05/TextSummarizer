@@ -1,103 +1,145 @@
-{% extends 'base.html' %}
-{% load crispy_forms_tags %}
+{% extends 'core/base.html' %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-12 col-md-8">
-        <div class="card mb-4">
-            <div class="card-body">
-                <h2 class="card-title text-center mb-4">AI Text Summarizer</h2>
-                <form method="post" class="mobile-form">
-                    {% csrf_token %}
-                    {{ form|crispy }}
-                    <div class="text-center mt-4">
-                        <button type="submit" class="btn btn-primary btn-lg w-100 w-md-auto">Summarize</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        {% if error %}
-        <div class="alert alert-danger" role="alert">
-            {{ error }}
-        </div>
-        {% endif %}
-
-        {% if summary %}
-        <div class="card">
-            <div class="card-body">
-                <h3 class="card-title mb-3">Original Text</h3>
-                <div class="card bg-light mb-4">
-                    <div class="card-body">
-                        <div class="text-content">
-                            {{ original_text|linebreaks }}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white py-3">
+                    <h3 class="text-center mb-0">
+                        <i class="fas fa-compress-alt me-2"></i>Text Summarizer
+                    </h3>
+                </div>
+                <div class="card-body p-4">
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="mb-4">
+                            <label for="id_text" class="form-label fw-bold">Enter your text:</label>
+                            <textarea name="text" id="id_text" class="form-control form-control-lg" rows="5" 
+                                    placeholder="Paste your text here to summarize..."></textarea>
                         </div>
-                    </div>
-                </div>
-                
-                <h3 class="card-title mb-3">AI Summary</h3>
-                <div class="card bg-light">
-                    <div class="card-body">
-                        {% if bullet_points %}
-                            <div class="bullet-points text-content">
-                                {{ summary|linebreaks }}
+                        <div class="mb-4">
+                            <label for="id_summary_length" class="form-label fw-bold">Summary Length:</label>
+                            <select name="summary_length" id="id_summary_length" class="form-select form-select-lg">
+                                <option value="short">Very Concise</option>
+                                <option value="medium" selected>Balanced</option>
+                                <option value="long">Detailed</option>
+                            </select>
+                        </div>
+                        <div class="mb-4 form-check">
+                            <input type="checkbox" name="bullet_points" id="id_bullet_points" class="form-check-input">
+                            <label class="form-check-label" for="id_bullet_points">Show as bullet points</label>
+                        </div>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-compress-alt me-2"></i>Summarize
+                            </button>
+                        </div>
+                    </form>
+
+                    {% if error %}
+                        <div class="alert alert-danger alert-dismissible fade show mt-3" role="alert">
+                            <i class="fas fa-exclamation-circle me-2"></i>{{ error }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    {% endif %}
+
+                    {% if summary %}
+                        <div class="mt-4">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h4 class="fw-bold mb-0">
+                                    <i class="fas fa-file-alt me-2"></i>Summary:
+                                </h4>
+                                <button class="btn btn-outline-primary btn-sm" onclick="copySummary()">
+                                    <i class="fas fa-copy me-1"></i>Copy
+                                </button>
                             </div>
-                        {% else %}
-                            <div class="text-content">
-                                {{ summary|linebreaks }}
-                            </div>
-                        {% endif %}
-                    </div>
+                            {% if bullet_points %}
+                                <pre class="bg-light p-3 rounded shadow-sm" id="summary-text">{{ summary }}</pre>
+                            {% else %}
+                                <p class="bg-light p-3 rounded shadow-sm" id="summary-text">{{ summary }}</p>
+                            {% endif %}
+                        </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
-        {% endif %}
     </div>
 </div>
 
 <style>
-    .bullet-points {
-        white-space: pre-line;
+    .card {
+        border: none;
+        border-radius: 15px;
+        overflow: hidden;
     }
-    
-    .text-content {
-        font-size: 1rem;
-        line-height: 1.5;
-        overflow-wrap: break-word;
+    .card-header {
+        border-bottom: none;
+        background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%) !important;
     }
-    
-    @media (max-width: 768px) {
-        .card {
-            border-radius: 0;
-            margin: -1rem;
-        }
-        
-        .card-body {
-            padding: 1rem;
-        }
-        
-        .btn-lg {
-            padding: 0.75rem 1.5rem;
-            font-size: 1rem;
-        }
-        
-        .card-title {
-            font-size: 1.25rem;
-        }
-        
-        .text-content {
-            font-size: 0.95rem;
-        }
-        
-        .bullet-points {
-            padding-left: 0.5rem;
-        }
+    .form-control, .form-select {
+        border-radius: 10px;
+        border: 1px solid #dee2e6;
+        padding: 0.8rem;
+        transition: all 0.3s ease;
     }
-    
-    @media (min-width: 769px) {
-        .card {
-            box-shadow: 0 0 15px rgba(0,0,0,0.1);
-        }
+    .form-control:focus, .form-select:focus {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.15);
+    }
+    .btn-primary {
+        border-radius: 10px;
+        padding: 1rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(13, 110, 253, 0.3);
+    }
+    .form-check-input:checked {
+        background-color: #0d6efd;
+        border-color: #0d6efd;
+    }
+    .form-check-input:focus {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.15);
+    }
+    pre, p {
+        font-size: 1.1rem;
+        line-height: 1.6;
+    }
+    .btn-outline-primary {
+        border-radius: 8px;
+        padding: 0.5rem 1rem;
+        transition: all 0.3s ease;
+    }
+    .btn-outline-primary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 3px 8px rgba(13, 110, 253, 0.2);
     }
 </style>
+
+<script>
+function copySummary() {
+    const summaryText = document.getElementById('summary-text').textContent;
+    navigator.clipboard.writeText(summaryText).then(() => {
+        // Show success message
+        const button = document.querySelector('.btn-outline-primary');
+        const originalText = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-check me-1"></i>Copied!';
+        button.classList.remove('btn-outline-primary');
+        button.classList.add('btn-success');
+        
+        // Reset button after 2 seconds
+        setTimeout(() => {
+            button.innerHTML = originalText;
+            button.classList.remove('btn-success');
+            button.classList.add('btn-outline-primary');
+        }, 2000);
+    }).catch(err => {
+        console.error('Failed to copy text: ', err);
+    });
+}
+</script>
 {% endblock %} 

@@ -1,0 +1,97 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container history-container">
+    <div class="history-header">
+        <h2><i class="fas fa-history me-2"></i>Your Summaries</h2>
+    </div>
+
+    {% if summaries %}
+        {% for summary in summaries %}
+            <div class="history-card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-file-alt me-2"></i>
+                            {{ summary.created_at|date:"F j, Y" }}
+                        </h5>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-light text-primary">
+                                {{ summary.summary_length|title }}
+                            </span>
+                            <a href="{% url 'delete_summary' summary.id %}" class="btn btn-outline-danger btn-sm delete-btn" 
+                               onclick="return confirm('Are you sure you want to delete this summary?')">
+                                <i class="fas fa-trash"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body position-relative">
+                    <button class="btn btn-outline-primary copy-btn" onclick="copySummary(this, '{{ summary.summary_text|escapejs }}')">
+                        <i class="fas fa-copy"></i>Copy Summary
+                    </button>
+
+                    <h6>Original Text:</h6>
+                    <p class="text-muted">{{ summary.original_text|truncatewords:50 }}</p>
+                    
+                    <h6>Summary:</h6>
+                    {% if summary.bullet_points %}
+                        <pre>{{ summary.summary_text }}</pre>
+                    {% else %}
+                        <p>{{ summary.summary_text }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        {% endfor %}
+    {% else %}
+        <div class="empty-history">
+            <i class="fas fa-file-alt"></i>
+            <p>You haven't created any summaries yet.</p>
+            <a href="{% url 'home' %}" class="btn btn-primary">
+                <i class="fas fa-plus me-2"></i>Create Your First Summary
+            </a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/history.css' %}">
+<style>
+    .delete-btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.875rem;
+        transition: all 0.3s ease;
+    }
+    .delete-btn:hover {
+        transform: scale(1.1);
+    }
+    .gap-2 {
+        gap: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function copySummary(button, text) {
+    navigator.clipboard.writeText(text).then(() => {
+        // Show success message
+        const originalText = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-check"></i>Copied!';
+        button.classList.remove('btn-outline-primary');
+        button.classList.add('btn-success');
+        
+        // Reset button after 2 seconds
+        setTimeout(() => {
+            button.innerHTML = originalText;
+            button.classList.remove('btn-success');
+            button.classList.add('btn-outline-primary');
+        }, 2000);
+    }).catch(err => {
+        console.error('Failed to copy text: ', err);
+    });
+}
+</script>
+{% endblock %} 
